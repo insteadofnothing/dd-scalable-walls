@@ -3,6 +3,6 @@
 	"unique_id": "insteadofnothing.ScalableWalls",
 	"version": "1.0.0",
 	"author": "insteadofnothing",
-	"description": "Scale your walls.",
+	"description": "Scale your walls in either direction.",
 	"dd_version": "1.1.0.0",
 }
