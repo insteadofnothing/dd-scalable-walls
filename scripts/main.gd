@@ -121,6 +121,10 @@ func on_scale_change(value: float):
   """
   Adds a scale request to the scale map, which will be performed in update().
   """
+  if lock_dimensions:
+    select_x_scale.value = value
+    select_y_scale.value = value
+
   var walls = get_selected_walls()
   var scale = [select_x_scale.value, select_y_scale.value]
   for wall in walls:
@@ -158,10 +162,6 @@ func on_lock_pressed():
   Toggles the flag which locks the X and Y scale to the same value.
   """
   lock_dimensions = not lock_dimensions
-  if lock_dimensions:
-    select_x_scale.share(select_y_scale)
-  else:
-    select_x_scale.unshare()
 
 
 func add_scales():
@@ -203,8 +203,8 @@ func init_select_scales():
   scale_children.append(get_last_added(select_panel))
 
   var lock_toggle = select_panel.CreateToggle(
-      "LockDimensionsID", false, "Unlock Dimensions", Global.Root + "icons/unlock.png",
-      "Lock Dimensions", Global.Root +"icons/lock.png")
+      "LockRatioID", false, "Unlock Ratio", Global.Root + "icons/unlock.png",
+      "Lock Ratio", Global.Root +"icons/lock.png")
   lock_toggle.connect("pressed", self, "on_lock_pressed")
   scale_children.append(lock_toggle)
 
