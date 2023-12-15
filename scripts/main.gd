@@ -43,6 +43,27 @@ func get_last_added(tool_panel):
   return tool_panel.Align.get_children()[len(tool_panel.Align.get_children()) - 1]
 
 
+func load_texture(path: String) -> Texture:
+  """
+  Loads a texture based on the path, either internal or external.
+  """
+  if path.begins_with("res://packs"):
+    var tex_file = File.new()
+    tex_file.open(path, File.READ)
+
+    var image_data = tex_file.get_buffer(tex_file.get_len())
+    var img = Image.new()
+    img.load_png_from_buffer(image_data)
+
+    var img_tex = ImageTexture.new()
+    img_tex.create_from_image(img)
+    tex_file.close()
+
+    return img_tex
+  else:
+    return load(path)
+
+
 func cache_textures(wall):
   """
   Caches a wall's textures for retrieval during scaling.
@@ -79,8 +100,8 @@ func get_scaled_texture(path: String, scale: Array) -> ImageTexture:
   """
   Returns a new texture adjusted to the appropriate scale.
   """
-  # var img = texture_cache[path].duplicate()
-  var img = load(path).get_data()
+  var tex = load_texture(path)
+  var img = tex.get_data()
 
   # Ensure the dimensions are within the required range [1, 16384].
   var width = max(1, min(img.get_width() * scale[0], 16384))
@@ -116,19 +137,49 @@ func scale_wall(wall, scale: Array):
   scale_cache[node_id]["scale"] = scale
   save_scale_cache(scale_cache)
 
-
-func on_scale_change(value: float):
+var correcting = false
+func on_scale_change(is_x: bool):
   """
   Adds a scale request to the scale map, which will be performed in update().
   """
-  if lock_dimensions:
-    select_x_scale.value = value
-    select_y_scale.value = value
+  if correcting:
+    correcting = false
+    return
 
   var walls = get_selected_walls()
-  var scale = [select_x_scale.value, select_y_scale.value]
   for wall in walls:
+    var scale = [select_x_scale.value, select_y_scale.value]
+
+    var scale_cache = get_scale_cache()
+    var node_id = String(wall.get_meta("node_id"))
+    if not scale_cache.has(node_id):
+      scale_cache[node_id] = create_scale_entry(wall, [1, 1])
+      save_scale_cache()
+    var entry = scale_cache[node_id]
+    var ratio = 1
+
+    if lock_dimensions:
+      ratio = entry["scale"][0] / entry["scale"][1]
+      correcting = true
+      if is_x:
+        scale[1] = scale[0] / ratio
+      else:
+        scale[0] = scale[1] * ratio
+    else:
+      if is_x:
+        scale[1] = entry["scale"][1]
+      else:
+        scale[0] = entry["scale"][0]
+
     scale_map[wall.get_meta("node_id")] = scale
+
+
+func on_x_change(value: float):
+  on_scale_change(true)
+
+
+func on_y_change(value: float):
+  on_scale_change(false)
 
 
 func on_reset_pressed():
@@ -191,7 +242,7 @@ func init_select_scales():
   scale_children.append(get_last_added(select_panel))
   select_x_scale = select_panel.CreateSlider(
       "XSliderID", 1, 0.1, 25, 0.01, true)
-  select_x_scale.connect("value_changed", self, "on_scale_change")
+  select_x_scale.connect("value_changed", self, "on_x_change")
   scale_children.append(get_last_added(select_panel))
 
   # Add the y scale and connect it to the scaling function.
@@ -199,7 +250,7 @@ func init_select_scales():
   scale_children.append(get_last_added(select_panel))
   select_y_scale = select_panel.CreateSlider(
       "YSliderID", 1, 0.1, 25, 0.01, true)
-  select_y_scale.connect("value_changed", self, "on_scale_change")
+  select_y_scale.connect("value_changed", self, "on_y_change")
   scale_children.append(get_last_added(select_panel))
 
   var lock_toggle = select_panel.CreateToggle(
@@ -279,8 +330,8 @@ func init_wall_scaling():
       pruned_ids.append(node_id)
       continue
     var entry = scale_cache[node_id]
-    wall.Texture = load(entry["texture"])
-    wall.EndTexture = load(entry["end_texture"])
+    wall.Texture = load_texture(entry["texture"])
+    wall.EndTexture = load_texture(entry["end_texture"])
     scale_wall(wall, scale_cache[node_id]["scale"])
 
   # Erase any entries for deleted walls.
